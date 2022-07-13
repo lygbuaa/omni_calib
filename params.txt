@@ -1,0 +1,13 @@
+# for the meaning of params, please refer to cv.omnidir.initUndistortRectifyMap, https://docs.opencv.org/3.4/d3/ddc/group__ccalib.html
+
+K: [[633.28436381   0.     640.]
+    [0.      633.29459614  400.]
+    [0.           0.         1.]], 
+
+xi: [[1.]], 
+
+D: [[ 1.83077408e-04 -2.12086903e-03  4.07512710e-06 -9.31844932e-05]], 
+
+map1_size: (800, 1280)
+map2_siez: (800, 1280)
+

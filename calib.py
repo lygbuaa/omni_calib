@@ -16,6 +16,8 @@ class OmniCalib(object):
     g_K = np.zeros((3,3))
     g_xi = np.array([])
     g_D = np.zeros([1,4])
+    g_map1 = None
+    g_map2 = None
 
     def __init__(self):
         print("opencv version: {}".format(cv2.__version__))
@@ -59,7 +61,7 @@ class OmniCalib(object):
         rms, self.g_K, self.g_xi, self.g_D, rvecs, tvecs, used_img_idx = cv2.omnidir.calibrate(objectpoints, imagepoints, self.G_IMG_SIZE , self.g_K, self.g_xi, self.g_D, self.G_OMNI_FLAGS, self.G_CRITERIA)
         print("omni params, K: {}, xi: {}, D: {}, used_img_idx: {}, rms error: {}".format(self.g_K, self.g_xi, self.g_D, used_img_idx, rms))
 
-    def undistort_image(self):
+    def undistort_image(self, input_img):
         # cv2.omnidir.RECTIFY_PERSPECTIVE 
         # cv2.omnidir.RECTIFY_CYLINDRICAL
         # cv2.omnidir.RECTIFY_LONGLATI
@@ -72,20 +74,78 @@ class OmniCalib(object):
         # xi=0, no distortion; xi=1, huge distortion
         self.g_xi = self.g_xi
 
-        for fname in self.g_images:
-            input_img = cv2.imread(fname)
-            output_img = np.array([])
-            output_img = cv2.omnidir.undistortImage(input_img, self.g_K, self.g_D, self.g_xi, flags, output_img, new_K, new_size)
-            cv2.namedWindow('undistort', cv2.WINDOW_NORMAL)
-            cv2.imshow('undistort', output_img)
-            cv2.waitKey(-1)#-1
-        cv2.destroyAllWindows()
-        
+        output_img = cv2.omnidir.undistortImage(input_img, self.g_K, self.g_D, self.g_xi, flags, output_img, new_K, new_size)
+        return output_img
 
-if __name__ == "__main__":
+        # for fname in self.g_images:
+        #     input_img = cv2.imread(fname)
+        #     output_img = np.array([])
+        #     output_img = cv2.omnidir.undistortImage(input_img, self.g_K, self.g_D, self.g_xi, flags, output_img, new_K, new_size)
+        #     cv2.namedWindow('undistort', cv2.WINDOW_NORMAL)
+        #     cv2.imshow('undistort', output_img)
+        #     cv2.waitKey(-1)#-1
+        # cv2.destroyAllWindows()
+
+    def rectify_map(self, save_map=True):
+        R = np.eye(3,3)
+        new_size = (self.G_IMG_SIZE[0]*1, self.G_IMG_SIZE[1]*1)
+        m1type = cv2.CV_32FC1
+        flags = cv2.omnidir.RECTIFY_PERSPECTIVE
+        self.g_map1, self.g_map2 = cv2.omnidir.initUndistortRectifyMap(self.g_K, self.g_D, self.g_xi, R, self.g_K, new_size, m1type, flags)
+        print("map1: {}, map2: {}".format(self.g_map1.shape, self.g_map2.shape))
+        if save_map:
+            # save map1
+            h, w = self.g_map1.shape
+            map1_file_path = "./map1.txt"
+            with open(map1_file_path, "w") as f:
+                for hh in range(h):
+                    for ww in range(w):
+                        coord = "{:.6f}\n".format(self.g_map1[hh, ww])
+                        f.write(coord)
+            # save map2
+            h, w = self.g_map2.shape
+            map1_file_path = "./map2.txt"
+            with open(map1_file_path, "w") as f:
+                for hh in range(h):
+                    for ww in range(w):
+                        coord = "{:.6f}\n".format(self.g_map2[hh, ww])
+                        f.write(coord)
+        return self.g_map1, self.g_map2
+
+    def remap(self, input_img):
+        interpolation = cv2.INTER_LINEAR
+        output_img = cv2.remap(input_img, self.g_map1, self.g_map2, interpolation)
+        return output_img
+
+def test_undistort():
     calibrator = OmniCalib()
     calibrator.load_images()
     calibrator.find_points()
     calibrator.omni_calib()
-    calibrator.undistort_image()
+    for fname in calibrator.g_images:
+        input_img = cv2.imread(fname)
+        output_img = np.array([])
+        output_img = calibrator.undistort_image(input_img)
+        cv2.namedWindow('undistort', cv2.WINDOW_NORMAL)
+        cv2.imshow('undistort', output_img)
+        cv2.waitKey(-1)#-1
+    cv2.destroyAllWindows()
 
+
+def test_remap():
+    calibrator = OmniCalib()
+    calibrator.load_images()
+    calibrator.find_points()
+    calibrator.omni_calib()
+    calibrator.rectify_map()
+    for fname in calibrator.g_images:
+        input_img = cv2.imread(fname)
+        output_img = np.array([])
+        output_img = calibrator.remap(input_img)
+        cv2.namedWindow('undistort', cv2.WINDOW_NORMAL)
+        cv2.imshow('undistort', output_img)
+        cv2.waitKey(-1)#-1
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    test_remap()
