@@ -2,8 +2,6 @@ import cv2, glob
 import numpy as np
 
 class OmniCalib(object):
-    G_IMG_PATH = "./images/"
-    G_IMG_EXT = "jpg"
     G_IMG_SIZE = (1280, 800)
     G_CHESS_SIZE = (7, 7)
     G_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.01)
@@ -19,19 +17,15 @@ class OmniCalib(object):
     g_map1 = None
     g_map2 = None
 
-    def __init__(self):
+    def __init__(self, images_glob):
         print("opencv version: {}".format(cv2.__version__))
         self.g_objp = np.zeros((self.G_CHESS_SIZE[0] * self.G_CHESS_SIZE[1], 3), np.float32)
         self.g_objp[:, :2] = np.mgrid[0:self.G_CHESS_SIZE[0], 0:self.G_CHESS_SIZE[1]].T.reshape(-1, 2)
         self.g_objp *= self.G_CHESS_SQUARE_LEN
+        self.g_images = images_glob
 
     def __del__(self):
         print("OmniCalib exit")
-
-    def load_images(self):
-        inputs = self.G_IMG_PATH + "*." + self.G_IMG_EXT
-        self.g_images = sorted(glob.glob(inputs))
-        print("found {} images: {}".format(len(self.g_images), self.g_images))
 
     def find_points(self):
         for fname in self.g_images:
@@ -77,15 +71,6 @@ class OmniCalib(object):
         output_img = cv2.omnidir.undistortImage(input_img, self.g_K, self.g_D, self.g_xi, flags, output_img, new_K, new_size)
         return output_img
 
-        # for fname in self.g_images:
-        #     input_img = cv2.imread(fname)
-        #     output_img = np.array([])
-        #     output_img = cv2.omnidir.undistortImage(input_img, self.g_K, self.g_D, self.g_xi, flags, output_img, new_K, new_size)
-        #     cv2.namedWindow('undistort', cv2.WINDOW_NORMAL)
-        #     cv2.imshow('undistort', output_img)
-        #     cv2.waitKey(-1)#-1
-        # cv2.destroyAllWindows()
-
     def rectify_map(self, save_map=True):
         R = np.eye(3,3)
         new_size = (self.G_IMG_SIZE[0]*1, self.G_IMG_SIZE[1]*1)
@@ -104,8 +89,8 @@ class OmniCalib(object):
                         f.write(coord)
             # save map2
             h, w = self.g_map2.shape
-            map1_file_path = "./map2.txt"
-            with open(map1_file_path, "w") as f:
+            map2_file_path = "./map2.txt"
+            with open(map2_file_path, "w") as f:
                 for hh in range(h):
                     for ww in range(w):
                         coord = "{:.6f}\n".format(self.g_map2[hh, ww])
@@ -117,12 +102,18 @@ class OmniCalib(object):
         output_img = cv2.remap(input_img, self.g_map1, self.g_map2, interpolation)
         return output_img
 
+def load_images(img_path="./images/", img_ext="jpg"):
+    inputs = img_path + "*." + img_ext
+    g_images = sorted(glob.glob(inputs))
+    print("found {} images: {}".format(len(g_images), g_images))
+    return g_images
+
 def test_undistort():
-    calibrator = OmniCalib()
-    calibrator.load_images()
+    g_calib_images = load_images(img_path="./images/", img_ext="jpg")
+    calibrator = OmniCalib(g_calib_images)
     calibrator.find_points()
     calibrator.omni_calib()
-    for fname in calibrator.g_images:
+    for fname in g_calib_images:
         input_img = cv2.imread(fname)
         output_img = np.array([])
         output_img = calibrator.undistort_image(input_img)
@@ -131,17 +122,18 @@ def test_undistort():
         cv2.waitKey(-1)#-1
     cv2.destroyAllWindows()
 
-
 def test_remap():
-    calibrator = OmniCalib()
-    calibrator.load_images()
+    g_calib_images = load_images(img_path="./images/", img_ext="jpg")
+    calibrator = OmniCalib(g_calib_images)
     calibrator.find_points()
     calibrator.omni_calib()
     calibrator.rectify_map()
-    for fname in calibrator.g_images:
+    g_test_images = load_images(img_path="./dots/", img_ext="jpg")
+    for fname in g_test_images:
         input_img = cv2.imread(fname)
         output_img = np.array([])
         output_img = calibrator.remap(input_img)
+        # cv2.imwrite(fname+".png", output_img)
         cv2.namedWindow('undistort', cv2.WINDOW_NORMAL)
         cv2.imshow('undistort', output_img)
         cv2.waitKey(-1)#-1
